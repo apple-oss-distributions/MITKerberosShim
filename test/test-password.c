@@ -33,67 +33,72 @@
  * SUCH DAMAGE.
  */
 
-#include "mit-KerberosLogin.h"
 #include <stdio.h>
 #include <err.h>
+#include <string.h>
+#include <Kerberos/krb5.h>
+#include "test_collection.h"
 
-int
-main(int argc, char **argv)
+int main(int argc, char **argv)
 {
-    KLLoginOptions options;
-    KLPrincipal princ;
-    KLStatus ret;
-    KLBoolean foundV5;
-    KLIdleCallback idlecall;
-    KLRefCon refcon;
+	krb5_error_code ret = 0;
 
-    if (argc != 2)
-	errx(1, "argc != 2");
+	krb5_context context = NULL;
+	krb5_principal princ = NULL;
+	krb5_get_init_creds_opt opt;
+	krb5_creds cred;
+	int result_code;
+	krb5_data result_code_string;
+	krb5_data result_string;
 
-    printf("test NULL argument\n");
-    ret = KLCreatePrincipalFromString(NULL, kerberosVersion_V5, &princ);
-    if (ret == 0)
-	errx(1, "KLCreatePrincipalFromString: %d", ret);
+	test_collection_t *tc = NULL;
 
-    printf("create principal\n");
-    ret = KLCreatePrincipalFromString(argv[1],
-				      kerberosVersion_V5, &princ);
-    if (ret)
-	errx(1, "KLCreatePrincipalFromString: %d", ret);
+	memset(&cred, 0, sizeof(cred));
+	memset(&result_code_string, 0, sizeof(result_code_string));
+	memset(&result_string, 0, sizeof(result_string));
 
-    printf("acquire cred\n");
+	tc = tests_init_and_start("test-krb5");
+	tests_set_flags(tc, TC_FLAG_EXIT_ON_FAILURE);
+	tests_set_total_count_hint(tc, 5);
 
-    KLCreateLoginOptions(&options);
-    KLLoginOptionsSetRenewableLifetime(options, 3600 * 24 * 7);
+	ret = krb5_init_context(&context);
+	test_evaluate(tc, "krb5_init_context", ret);
 
-    ret = KLAcquireInitialTickets(princ, options, NULL, NULL);
-    if (ret)
-	errx(1, "KLAcquireTicketsWithPassword: %d", ret);
+	ret = krb5_parse_name(context, argv[1], &princ);
+	test_evaluate(tc, "krb5_parse_name", ret);
 
-    KLDisposeLoginOptions(options);
+	krb5_get_init_creds_opt_init(&opt);
 
-    printf("get valid tickets\n");
-    ret = KLCacheHasValidTickets(princ, kerberosVersion_V5, &foundV5, NULL, NULL);
-    if (ret)
-	errx(1, "KLCacheHasValidTickets failed");
-    else if (!foundV5)
-	errx(1, "found no valid tickets");
+	ret = krb5_get_init_creds_password (context,
+					    &cred,
+					    princ,
+					    argv[2],
+					    krb5_prompter_posix,
+					    NULL,
+					    0,
+					    "kadmin/changepw",
+					    &opt);
+	test_evaluate(tc, "krb5_get_init_creds_password", ret);
 
-    printf("renew tickets\n");
-    ret = KLRenewInitialTickets(princ, NULL, NULL, NULL);
-    if (ret)
-	errx(1, "KLRenewInitialTickets: %d", ret);
-    KLDisposePrincipal(princ);
+	ret = krb5_set_password(context,
+				&cred,
+				argv[3],
+				NULL,
+				&result_code,
+				&result_code_string,
+				&result_string);
+	test_evaluate(tc, "krb5_set_password", ret);
 
-    printf("test callbacks\n");
-    ret = KLGetIdleCallback(&idlecall, &refcon);
-    if (ret != klNoErr)
-	errx(1, "KLGetIdleCallback: %d", ret);
+	printf("result code: %d result_code_string %.*s result_string: %*.s\n",
+	       result_code,
+	       (int)result_code_string.length,
+	       (char *)result_code_string.data,
+	       (int)result_string.length,
+	       (char *)result_string.data);
 
-    ret = KLSetIdleCallback(NULL, refcon);
-    if (ret != klNoErr)
-	errx(1, "KLSetIdleCallback: %d", ret);
+	test_evaluate(tc, "krb5_set_password result code", result_code);
 
+	krb5_free_context(context);
 
-    return 0;
+	return tests_stop_and_free(tc);
 }

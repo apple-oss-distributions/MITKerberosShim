@@ -50,7 +50,8 @@ krb5_get_init_creds_opt_set_process_last_req(mit_krb5_context context,
 					     mit_krb5_gic_process_last_req req,
 					     void *ctx)
 {
-    /* XXX need to implement this, its will be require for Lion 
+    LOG_ENTRY();
+    /* XXX need to implement this, its will be require for Lion
        some time later */
     return 0;
 }
@@ -295,7 +296,7 @@ krb5_get_in_tkt_with_password(mit_krb5_context context,
 void KRB5_CALLCONV
 krb5_verify_init_creds_opt_init(mit_krb5_verify_init_creds_opt *options)
 {
-    memset(options, 0, sizeof(options));
+    memset(options, 0, sizeof(*options));
 }
 
 void KRB5_CALLCONV
